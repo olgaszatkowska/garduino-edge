@@ -3,8 +3,8 @@ import logging
 from datetime import datetime
 
 
-from app.sensors.collect_data import CollectDataService
-from app.aggregate.aggregate_data import AggregateDataService
+from sensors.collect_data import CollectDataService
+from aggregate.aggregate_data import AggregateDataService
 
 
 DATA_COLLECTION_INTERVAL_SECONDS = os.environ.get("DATA_COLLECTION_INTERVAL_SECONDS")

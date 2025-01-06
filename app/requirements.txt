@@ -1,3 +1,5 @@
 influxdb-client
 adafruit-blinka
 adafruit-circuitpython-mcp3xxx
+Adafruit_DHT
+RPi.GPIO

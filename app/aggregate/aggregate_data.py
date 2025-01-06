@@ -1,7 +1,8 @@
 import os
+import logging
 from influxdb_client import Point
 
-from app.influx.client import LocalDBClient, AWSDBClient
+from influx.client import LocalDBClient, AWSDBClient
 
 
 DRY_RUN_MODE = os.environ.get("DRY_RUN_MODE") == '1'
@@ -14,7 +15,8 @@ class AggregateDataService():
         self.data_upload_interval = data_upload_interval
         self.data_collection_interval = data_collection_interval
         
-        
+        self.failed_uploads = []
+
     def aggregate_and_store(
         self,
         measurement: str,
@@ -22,6 +24,7 @@ class AggregateDataService():
         aggregation_func: str = "mean",
         output_measurement: str = "aggregated_data"
     ):
+        self._retry_failed_uploads()
         time_end = "now()",
         time_start=f"-{self.data_upload_interval}s",
         aggregate_period=f"{self.data_collection_interval}s",
@@ -46,7 +49,20 @@ class AggregateDataService():
                 aggregated_points.append(point)
         
         if not DRY_RUN_MODE:
-            self.influxdb_client_aws.write_point(aggregated_points)
+            try:
+                self.influxdb_client_aws.write_point(aggregated_points)
+            except Exception as e:
+                logging.error(f"Faled to upload aggregated data to cloud provider. Error: {e}")
+                self.failed_uploads.extend(aggregated_points)
         
         self.influxdb_client_local.write_point(aggregated_points)
     
+    def _retry_failed_uploads(self):
+        try:
+            self.influxdb_client_aws.write_point(self.failed_uploads)
+        except Exception as e:
+            logging.error(f"Faled to reupload aggregated data to cloud provider. Error: {e}")
+            return
+        
+        self.failed_uploads = []
+        logging.info(f"Succesfully uploaded failed uploads to cloud provider. Error: {e}")

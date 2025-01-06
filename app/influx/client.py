@@ -1,6 +1,6 @@
 import os
 
-from app.influx.abstract import Client, InfluxDBClient
+from influx.abstract import Client, InfluxDBClient
 
 
 class LocalDBClient(Client):

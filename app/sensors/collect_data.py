@@ -11,7 +11,7 @@ import busio
 from influxdb_client import Point
 from datetime import datetime
 
-from app.influx.client import LocalRawDBClient
+from influx.client import LocalRawDBClient
 
 IS_DHT11_CONNECTED = os.getenv("DHT11_CONNECTED") == "1"
 IS_SEN0193_CONNECTED = os.getenv("SEN0193_CONNECTED") == "1"
