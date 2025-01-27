@@ -11,9 +11,9 @@ class KeyValue:
     value: Any
 
 
-class Client(ABC):
+class DataBase(ABC):
     """
-    Abstract base class for a Client.
+    Abstract base class for a DataBase.
     """
 
     @abstractmethod

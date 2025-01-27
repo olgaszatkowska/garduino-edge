@@ -1,58 +1,61 @@
-import logging
 import os
 
-import Adafruit_DHT
-from adafruit_mcp3xxx.mcp3008 import MCP3008
-from adafruit_mcp3xxx.analog_in import AnalogIn
-import digitalio
-import board
+import adafruit_dht  
+from adafruit_ads1x15.ads1115 import ADS1115
+from adafruit_ads1x15.analog_in import AnalogIn
 import busio
+import board
 
 from influxdb_client import Point
-from datetime import datetime
+from datetime import datetime, timezone
 
-from influx.client import LocalRawDBClient
+from influx.database import LocalRawDB
+from logging_config import setup_logging
+
+logging = setup_logging("collect_data")
 
 IS_DHT11_CONNECTED = os.getenv("DHT11_CONNECTED") == "1"
 IS_SEN0193_CONNECTED = os.getenv("SEN0193_CONNECTED") == "1"
 SENSOR_MAX_VOLTAGE = 3.3
 
-DHT_SENSOR = Adafruit_DHT.DHT11
-SENSOR_1_PIN = 4
-SENSOR_2_PIN = 17
-
 
 class CollectDataService:
     def __init__(self) -> None:
-        self.influxdb_client = LocalRawDBClient()
-
-        spi = busio.SPI(clock=board.SCK, MISO=board.MISO, MOSI=board.MOSI)
-        cs = digitalio.DigitalInOut(board.D8)
-        mcp = MCP3008(spi, cs)
-
-        self.sen0193_1 = AnalogIn(mcp, MCP3008.P0)
-        self.sen0193_2 = AnalogIn(mcp, MCP3008.P1)
+        self.db = LocalRawDB()
+        
+        if IS_DHT11_CONNECTED:
+            self.dht_device_1 = adafruit_dht.DHT22(board.D23)
+            self.dht_device_2 = adafruit_dht.DHT22(board.D24)
+        
+        if IS_SEN0193_CONNECTED:
+            self.i2c = busio.I2C(board.SCL, board.SDA)
+            self.ads = ADS1115(self.i2c)
+            
+            self.sen0193_1 = AnalogIn(self.ads, 0)
+            self.sen0193_2 = AnalogIn(self.ads, 1)
 
     def collect_data(self):
         if IS_DHT11_CONNECTED:
             try:
                 self._collect_dht11_data()
-            except:
+            except Exception as e:
                 logging.error("Failed to gather data from dht11 sensor")
+                raise e
 
         if IS_SEN0193_CONNECTED:
             try:
                 self._collect_sen0193_data()
-            except:
+            except Exception as e:
                 logging.error("Failed to gather data from sen0193 sensor")
+                raise e
 
     def _collect_dht11_data(self):
         """
         Collect data from air
         """
-        current_time = datetime.now(datetime.timezone.utc)
-        humidity_1, temperature_1 = Adafruit_DHT.read_retry(DHT_SENSOR, SENSOR_1_PIN)
-        humidity_2, temperature_2 = Adafruit_DHT.read_retry(DHT_SENSOR, SENSOR_2_PIN)
+        current_time = datetime.now(timezone.utc)
+        humidity_1, temperature_1 = self.dht_device_1.humidity, self.dht_device_1.temperature, 
+        humidity_2, temperature_2 = self.dht_device_2.humidity, self.dht_device_2.temperature, 
         
         average_humidity = (humidity_1+humidity_2)/2
         average_temperature = (temperature_1+temperature_2)/2
@@ -64,29 +67,37 @@ class CollectDataService:
             .field("temperature", float(average_temperature))
             .time(current_time)
         )
+        
+        logging.info(f"Collected humidity: {float(average_humidity)} and temperature: {float(average_temperature)}")
 
-        self.influxdb_client.write_point(point)
+        self.db.write_point(point)
 
 
     def _collect_sen0193_data(self):
         """
-        Collect data from flower pots.
+        Collect data from soil.
         Uses DFRobot Gravity.
         """
-
-        humidity = lambda voltage: (voltage / SENSOR_MAX_VOLTAGE) * 100
-        humidity_1 = humidity(self.sen0193_1.voltage)
-        humidity_2 = humidity(self.sen0193_2.voltage)
+        moisture = lambda voltage: (voltage / SENSOR_MAX_VOLTAGE) * 100
+        v_1 = self.sen0193_1.voltage
+        v_2 = self.sen0193_2.voltage
         
-        average_humidity = (humidity_1+humidity_2)/2
+        logging.info(f"Voltage in soil sensors: {v_1} and {v_2}")
+        
+        moisture_1 = moisture(v_1)
+        moisture_2 = moisture(v_2)
+        
+        average_moisture = (moisture_1+moisture_2)/2
 
-        current_time = datetime.now(datetime.timezone.utc)
+        current_time = datetime.now(timezone.utc)
 
         point = (
-            Point("flower_pots_data")
+            Point("soil_data")
             .tag("sensor_id", "sen0193")
-            .field("humidity", average_humidity)
+            .field("moisture", average_moisture)
             .time(current_time)
         )
+        
+        logging.info(f"Collected moisture: {average_moisture}")
 
-        self.influxdb_client.write_point(point)
+        self.db.write_point(point)

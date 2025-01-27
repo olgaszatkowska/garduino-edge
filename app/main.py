@@ -1,10 +1,11 @@
 import os
-import logging
 from datetime import datetime
-
 
 from sensors.collect_data import CollectDataService
 from aggregate.aggregate_data import AggregateDataService
+from logging_config import setup_logging
+
+logging = setup_logging("main")
 
 
 DATA_COLLECTION_INTERVAL_SECONDS = os.environ.get("DATA_COLLECTION_INTERVAL_SECONDS")
@@ -22,12 +23,14 @@ def check_env():
         or SEN0193_CONNECTED
     ):
         logging.error("Missing settings configuration. Please see readme.")
-        exit()
+        raise Exception("Missing settings configuration. Please see readme.")
 
 
 def main():
     data_collection_interval = int(DATA_COLLECTION_INTERVAL_SECONDS)
     data_upload_interval = int(DATA_UPLOAD_INTERVAL_SECONDS)
+    
+    logging.info(f"App start")
     
     aggregate_service = AggregateDataService(data_upload_interval=data_upload_interval, data_collection_interval=data_collection_interval)
 
@@ -49,22 +52,31 @@ def main():
         time_to_upload = (
             data_upload_time_difference.total_seconds() > data_upload_interval
         )
+
         if time_to_upload:
-            aggregate_service.aggregate_and_store(
-                measurement="air_data",
-                field="temperature",
-                output_measurement="aggregated_air_data"
-            )
-            aggregate_service.aggregate_and_store(
-                measurement="air_data",
-                field="humidity",
-                output_measurement="aggregated_air_data"
-            )
-            aggregate_service.aggregate_and_store(
-                measurement="flower_pots_data",
-                field="humidity",
-                output_measurement="aggregated_flower_pots_data"
-            )
+            if DHT11_CONNECTED == "1":
+                logging.info(f"Aggregating data from DHT11")
+
+                aggregate_service.aggregate_and_store(
+                    measurement="air_data",
+                    field="temperature",
+                    output_measurement="aggregated_air_data"
+                )
+                aggregate_service.aggregate_and_store(
+                    measurement="air_data",
+                    field="humidity",
+                    output_measurement="aggregated_air_data"
+                )
+                
+            if SEN0193_CONNECTED == "1":
+                logging.info(f"Aggregating data from SEN0193")
+
+                aggregate_service.aggregate_and_store(
+                    measurement="soil_data",
+                    field="moisture",
+                    output_measurement="aggregated_soil_data"
+                )
+            
             last_upload_time = datetime.now()
 
 
