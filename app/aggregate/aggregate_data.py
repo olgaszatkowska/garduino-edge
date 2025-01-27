@@ -42,7 +42,7 @@ class AggregateDataService():
             |> filter(fn: (r) => r._measurement == "{measurement}" and r._field == "{field}")
             |> aggregateWindow(every: {aggregate_period}, fn: {aggregation_func}, createEmpty: false)
         """
-        logging.info(query)
+
         raw_db_client = self.local_raw_db.get_client()
         query_api = raw_db_client.query_api()
         result = query_api.query(org=raw_db_client.org, query=query)

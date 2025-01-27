@@ -18,14 +18,13 @@ IS_DHT11_CONNECTED = os.getenv("DHT11_CONNECTED") == "1"
 IS_SEN0193_CONNECTED = os.getenv("SEN0193_CONNECTED") == "1"
 SENSOR_MAX_VOLTAGE = 3.3
 
+DHT11_SENSOR_1 = adafruit_dht.DHT11(board.D23)
+DHT11_SENSOR_2 = adafruit_dht.DHT11(board.D24)
+
 
 class CollectDataService:
     def __init__(self) -> None:
         self.db = LocalRawDB()
-        
-        if IS_DHT11_CONNECTED:
-            self.dht_device_1 = adafruit_dht.DHT22(board.D23)
-            self.dht_device_2 = adafruit_dht.DHT22(board.D24)
         
         if IS_SEN0193_CONNECTED:
             self.i2c = busio.I2C(board.SCL, board.SDA)
@@ -38,24 +37,23 @@ class CollectDataService:
         if IS_DHT11_CONNECTED:
             try:
                 self._collect_dht11_data()
-            except Exception as e:
+            except Exception:
                 logging.error("Failed to gather data from dht11 sensor")
-                raise e
 
         if IS_SEN0193_CONNECTED:
             try:
                 self._collect_sen0193_data()
-            except Exception as e:
+            except Exception:
                 logging.error("Failed to gather data from sen0193 sensor")
-                raise e
 
     def _collect_dht11_data(self):
         """
         Collect data from air
         """
         current_time = datetime.now(timezone.utc)
-        humidity_1, temperature_1 = self.dht_device_1.humidity, self.dht_device_1.temperature, 
-        humidity_2, temperature_2 = self.dht_device_2.humidity, self.dht_device_2.temperature, 
+
+        humidity_1, temperature_1 = DHT11_SENSOR_1.humidity, DHT11_SENSOR_1.temperature 
+        humidity_2, temperature_2 = DHT11_SENSOR_2.humidity, DHT11_SENSOR_2.temperature
         
         average_humidity = (humidity_1+humidity_2)/2
         average_temperature = (temperature_1+temperature_2)/2
